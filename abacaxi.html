@@ -1,162 +1,200 @@
+Claro! Abaixo está um **jogo HTML completo** com:
+
+* **Arena branca (plano de chão)**.
+* Dois jogadores (azul e vermelho) que podem **atirar projéteis verdes**.
+* Cada jogador tem **sistema de vida** (3 pontos).
+* Quando a vida de um jogador chega a **zero**, aparece uma **tela de "Game Over"** com o vencedor.
+
+✅ **Controles**:
+
+* **Jogador Azul**:
+
+  * Mover: `W`, `A`, `S`, `D`
+  * Atirar: `Espaço`
+* **Jogador Vermelho**:
+
+  * Mover: `Setas`
+  * Atirar: `Enter`
+
+---
+
+```html
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
   <meta charset="UTF-8">
-  <title>Jogo dos Quadrados</title>
+  <title>Jogo dos Quadrados com Vida</title>
   <style>
-    body {
-      margin: 0;
-      overflow: hidden;
-      background-image: url('https://i.imgur.com/XWwR6bZ.jpg'); /* Fundo com cavalos */
-      background-size: cover;
-    }
-    canvas {
-      display: block;
+    * { margin: 0; padding: 0; }
+    body { background: #fff; overflow: hidden; }
+    canvas { display: block; background: #e0e0e0; }
+    #gameOverScreen {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 3em;
+      font-family: sans-serif;
+      z-index: 10;
+      display: none;
     }
   </style>
 </head>
 <body>
-<canvas id="gameCanvas"></canvas>
+  <canvas id="gameCanvas"></canvas>
+  <div id="gameOverScreen"></div>
 
-<script>
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
-canvas.width = 800;
-canvas.height = 600;
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    canvas.width = 800;
+    canvas.height = 600;
 
-const keys = {};
-document.addEventListener('keydown', e => keys[e.key] = true);
-document.addEventListener('keyup', e => keys[e.key] = false);
+    const keys = {};
+    document.addEventListener('keydown', e => keys[e.key] = true);
+    document.addEventListener('keyup', e => keys[e.key] = false);
 
-class Player {
-  constructor(x, y, color, controls) {
-    this.x = x;
-    this.y = y;
-    this.color = color;
-    this.controls = controls;
-    this.width = 40;
-    this.height = 40;
-    this.projectiles = [];
-    this.hasSword = false;
-  }
+    class Player {
+      constructor(x, y, color, controls) {
+        this.x = x;
+        this.y = y;
+        this.color = color;
+        this.controls = controls;
+        this.width = 40;
+        this.height = 40;
+        this.projectiles = [];
+        this.life = 3;
+        this.shootCooldown = 0;
+      }
 
-  move() {
-    if (keys[this.controls.left]) this.x -= 3;
-    if (keys[this.controls.right]) this.x += 3;
-    if (keys[this.controls.up]) this.y -= 3;
-    if (keys[this.controls.down]) this.y += 3;
+      move() {
+        if (keys[this.controls.left]) this.x -= 3;
+        if (keys[this.controls.right]) this.x += 3;
+        if (keys[this.controls.up]) this.y -= 3;
+        if (keys[this.controls.down]) this.y += 3;
 
-    // Limites da arena
-    this.x = Math.max(0, Math.min(canvas.width - this.width, this.x));
-    this.y = Math.max(0, Math.min(canvas.height - this.height, this.y));
-  }
+        this.x = Math.max(0, Math.min(canvas.width - this.width, this.x));
+        this.y = Math.max(0, Math.min(canvas.height - this.height, this.y));
+      }
 
-  shoot() {
-    this.projectiles.push({
-      x: this.x + this.width / 2,
-      y: this.y + this.height / 2,
-      dx: this.color === 'blue' ? 5 : -5
+      shoot() {
+        this.projectiles.push({
+          x: this.x + this.width / 2,
+          y: this.y + this.height / 2,
+          dx: this.color === 'blue' ? 5 : -5,
+          width: 6,
+          height: 6
+        });
+      }
+
+      updateProjectiles() {
+        this.projectiles.forEach(p => p.x += p.dx);
+        this.projectiles = this.projectiles.filter(p => p.x >= 0 && p.x <= canvas.width);
+      }
+
+      draw() {
+        // Quadrado do jogador
+        ctx.fillStyle = this.color;
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+
+        // Arma
+        ctx.fillStyle = 'red';
+        ctx.fillRect(this.x + this.width/2 - 5, this.y - 10, 10, 10);
+
+        // Tiros
+        ctx.fillStyle = 'green';
+        this.projectiles.forEach(p => {
+          ctx.fillRect(p.x, p.y, p.width, p.height);
+        });
+
+        // Vida
+        ctx.fillStyle = this.color;
+        ctx.font = "16px Arial";
+        const lifeText = `Vida: ${this.life}`;
+        if (this.color === 'blue') {
+          ctx.fillText(lifeText, 10, 20);
+        } else {
+          ctx.fillText(lifeText, canvas.width - 90, 20);
+        }
+      }
+    }
+
+    const player1 = new Player(100, 300, 'blue', {
+      left: 'a', right: 'd', up: 'w', down: 's', shoot: ' '
     });
-  }
-
-  updateProjectiles() {
-    this.projectiles.forEach(p => p.x += p.dx);
-    this.projectiles = this.projectiles.filter(p => p.x >= 0 && p.x <= canvas.width);
-  }
-
-  draw() {
-    // Corpo
-    ctx.fillStyle = this.color;
-    ctx.fillRect(this.x, this.y, this.width, this.height);
-
-    // Arma (acima do jogador)
-    ctx.fillStyle = 'red';
-    ctx.fillRect(this.x + this.width/2 - 5, this.y - 10, 10, 10);
-
-    // Projetéis
-    ctx.fillStyle = 'green';
-    this.projectiles.forEach(p => {
-      ctx.fillRect(p.x, p.y, 5, 5);
+    const player2 = new Player(650, 300, 'red', {
+      left: 'ArrowLeft', right: 'ArrowRight', up: 'ArrowUp', down: 'ArrowDown', shoot: 'Enter'
     });
 
-    // Espada na mão se coletada
-    if (this.hasSword) {
-      ctx.fillStyle = 'silver';
-      ctx.fillRect(this.x + this.width, this.y + 10, 10, 5);
+    function checkCollisions(attacker, target) {
+      attacker.projectiles.forEach((p, i) => {
+        if (
+          p.x < target.x + target.width &&
+          p.x + p.width > target.x &&
+          p.y < target.y + target.height &&
+          p.y + p.height > target.y
+        ) {
+          target.life--;
+          attacker.projectiles.splice(i, 1);
+        }
+      });
     }
-  }
 
-  checkSwordPickup(sword) {
-    if (!sword.collected &&
-        this.x < sword.x + sword.size &&
-        this.x + this.width > sword.x &&
-        this.y < sword.y + sword.size &&
-        this.y + this.height > sword.y) {
-      this.hasSword = true;
-      sword.collected = true;
+    function showGameOver(winnerColor) {
+      gameOverScreen.textContent = `${winnerColor.toUpperCase()} venceu!`;
+      gameOverScreen.style.display = 'flex';
     }
-  }
-}
 
-const sword = {
-  x: canvas.width - 50,
-  y: canvas.height - 50,
-  size: 20,
-  collected: false,
-  draw() {
-    if (!this.collected) {
-      ctx.fillStyle = 'silver';
-      ctx.fillRect(this.x, this.y, this.size / 2, this.size);
+    function gameLoop() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Fim de jogo
+      if (player1.life <= 0) return showGameOver('vermelho');
+      if (player2.life <= 0) return showGameOver('azul');
+
+      // Movimento
+      player1.move();
+      player2.move();
+
+      // Tiros
+      if (keys[player1.controls.shoot]) {
+        if (player1.shootCooldown <= 0) {
+          player1.shoot();
+          player1.shootCooldown = 20;
+        }
+      }
+      if (keys[player2.controls.shoot]) {
+        if (player2.shootCooldown <= 0) {
+          player2.shoot();
+          player2.shootCooldown = 20;
+        }
+      }
+
+      // Reduz cooldown
+      if (player1.shootCooldown > 0) player1.shootCooldown--;
+      if (player2.shootCooldown > 0) player2.shootCooldown--;
+
+      // Atualiza projéteis
+      player1.updateProjectiles();
+      player2.updateProjectiles();
+
+      // Verifica colisões
+      checkCollisions(player1, player2);
+      checkCollisions(player2, player1);
+
+      // Desenhar
+      player1.draw();
+      player2.draw();
+
+      requestAnimationFrame(gameLoop);
     }
-  }
-};
 
-const player1 = new Player(100, 300, 'blue', {
-  left: 'a', right: 'd', up: 'w', down: 's', shoot: ' '
-});
-const player2 = new Player(650, 300, 'red', {
-  left: 'ArrowLeft', right: 'ArrowRight', up: 'ArrowUp', down: 'ArrowDown', shoot: 'Enter'
-});
-
-function gameLoop() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Movimentação
-  player1.move();
-  player2.move();
-
-  // Tiro
-  if (keys[player1.controls.shoot]) {
-    if (!player1.shootCooldown) {
-      player1.shoot();
-      player1.shootCooldown = 20;
-    }
-  }
-
-  if (keys[player2.controls.shoot]) {
-    if (!player2.shootCooldown) {
-      player2.shoot();
-      player2.shootCooldown = 20;
-    }
-  }
-
-  if (player1.shootCooldown) player1.shootCooldown--;
-  if (player2.shootCooldown) player2.shootCooldown--;
-
-  // Atualização e desenho
-  player1.updateProjectiles();
-  player2.updateProjectiles();
-  player1.checkSwordPickup(sword);
-  player2.checkSwordPickup(sword);
-
-  player1.draw();
-  player2.draw();
-  sword.draw();
-
-  requestAnimationFrame(gameLoop);
-}
-
-gameLoop();
-</script>
+    gameLoop();
+  </script>
 </body>
 </html>
