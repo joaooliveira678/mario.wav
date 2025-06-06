@@ -1,207 +1,131 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Jogo dos Quadrados com Espada</title>
+  <title>Tamagotchi Cachorrinho</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: white; overflow: hidden; }
-    canvas { display: block; margin: auto; background: white; }
-    #gameOverScreen {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      background: rgba(0, 0, 0, 0.8);
-      color: white;
-      font-size: 3em;
-      display: none;
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f5eac2;
+      display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-      z-index: 1;
+      height: 100vh;
+    }
+    #pet {
+      width: 150px;
+      height: 150px;
+      background-color: #8B4513;
+      border-radius: 10px;
+      position: relative;
+      margin-bottom: 20px;
+    }
+    #dialog {
+      position: absolute;
+      top: -50px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      background: white;
+      padding: 5px 10px;
+      border-radius: 10px;
+      box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+      font-style: italic;
+    }
+    #feedBtn {
+      padding: 10px 20px;
+      font-size: 16px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #status {
+      margin-top: 10px;
+      font-weight: bold;
     }
   </style>
 </head>
 <body>
-  <canvas id="gameCanvas" width="800" height="600"></canvas>
-  <div id="gameOverScreen"></div>
+  <div id="pet">
+    <div id="dialog">*latindo*</div>
+  </div>
+  <button id="feedBtn">Alimentar 🥩</button>
+  <div id="status">Fome: <span id="hunger">0</span>/100</div>
 
   <script>
-    const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");
+    const hungerEl = document.getElementById("hunger");
+    const dialogEl = document.getElementById("dialog");
+    const petEl = document.getElementById("pet");
+    const feedBtn = document.getElementById("feedBtn");
 
-    const keys = {};
-    document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
-    document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+    let hunger = 0;
+    let dead = false;
 
-    class Player {
-      constructor(x, color, controls) {
-        this.x = x;
-        this.y = canvas.height - 60;
-        this.width = 40;
-        this.height = 40;
-        this.color = color;
-        this.controls = controls;
-        this.projectiles = [];
-        this.cooldown = 0;
-        this.life = 3;
-        this.hasSword = false;
+    const MAX_HUNGER = 100;
+    const HUNGER_INTERVAL = 3000; // fome a cada 3 segundos
+    const DEATH_THRESHOLD = 100;
+
+    // Funções
+    function updateHungerUI() {
+      hungerEl.textContent = hunger;
+      if (hunger >= DEATH_THRESHOLD) {
+        dialogEl.textContent = "*morreu de fome*";
+        petEl.style.backgroundColor = "#333";
+        dead = true;
+        feedBtn.disabled = true;
+      } else if (hunger > 80) {
+        dialogEl.textContent = "*estou morrendo de fome*";
+      } else if (hunger > 50) {
+        dialogEl.textContent = "*com fome*";
+      } else {
+        dialogEl.textContent = "*latindo*";
       }
+    }
 
-      move() {
-        if (keys[this.controls.left]) this.x -= 4;
-        if (keys[this.controls.right]) this.x += 4;
-        if (keys[this.controls.up]) this.y -= 4;
-        if (keys[this.controls.down]) this.y += 4;
+    function feed() {
+      if (dead) return;
+      hunger = Math.max(0, hunger - 30);
+      updateHungerUI();
+    }
 
-        // Limites da tela
-        this.x = Math.max(0, Math.min(canvas.width - this.width, this.x));
-        this.y = Math.max(0, Math.min(canvas.height - this.height - 20, this.y));
-      }
+    // Armazena o tempo de saída
+    function saveExitTime() {
+      localStorage.setItem("lastExitTime", Date.now());
+    }
 
-      shoot() {
-        if (this.cooldown <= 0) {
-          this.projectiles.push({
-            x: this.x + this.width / 2,
-            y: this.y + this.height / 2,
-            dx: this.color === "blue" ? 6 : -6,
-            size: this.hasSword ? 12 : 6,
-            damage: this.hasSword ? 2 : 1
-          });
-          this.cooldown = this.hasSword ? 10 : 20;
-        }
-      }
-
-      updateProjectiles() {
-        this.projectiles.forEach(p => p.x += p.dx);
-        this.projectiles = this.projectiles.filter(p => p.x > 0 && p.x < canvas.width);
-      }
-
-      draw() {
-        ctx.fillStyle = this.color;
-        ctx.fillRect(this.x, this.y, this.width, this.height);
-
-        // Arma vermelha
-        ctx.fillStyle = "red";
-        ctx.fillRect(this.x + this.width / 2 - 5, this.y - 10, 10, 10);
-
-        // Tiros
-        ctx.fillStyle = "green";
-        this.projectiles.forEach(p => {
-          ctx.fillRect(p.x, p.y, p.size, p.size);
-        });
-
-        // Vida
-        ctx.fillStyle = this.color;
-        ctx.font = "16px Arial";
-        const posX = this.color === "blue" ? 20 : canvas.width - 100;
-        ctx.fillText("Vida: " + this.life, posX, 20);
-      }
-
-      checkHitBy(enemyProjectiles) {
-        for (let i = 0; i < enemyProjectiles.length; i++) {
-          const p = enemyProjectiles[i];
-          if (
-            p.x < this.x + this.width &&
-            p.x + p.size > this.x &&
-            p.y < this.y + this.height &&
-            p.y + p.size > this.y
-          ) {
-            this.life -= p.damage;
-            enemyProjectiles.splice(i, 1);
-            break;
-          }
-        }
-      }
-
-      checkSwordPickup(sword) {
-        if (!sword.taken &&
-            this.x < sword.x + sword.size &&
-            this.x + this.width > sword.x &&
-            this.y < sword.y + sword.size &&
-            this.y + this.height > sword.y) {
-          sword.taken = true;
-          this.hasSword = true;
+    // Verifica se morreu ao voltar
+    function checkDeathOnReturn() {
+      const last = localStorage.getItem("lastExitTime");
+      if (last) {
+        const elapsedMinutes = (Date.now() - parseInt(last)) / 1000 / 60;
+        if (elapsedMinutes > 2) { // morreu se ficou fora mais de 2 minutos
+          hunger = DEATH_THRESHOLD;
+        } else {
+          hunger += Math.floor(elapsedMinutes * 10);
         }
       }
     }
 
-    const player1 = new Player(100, "blue", {
-      left: "a",
-      right: "d",
-      up: "w",
-      down: "s",
-      shoot: " "
-    });
+    // Início
+    checkDeathOnReturn();
+    updateHungerUI();
 
-    const player2 = new Player(660, "red", {
-      left: "arrowleft",
-      right: "arrowright",
-      up: "arrowup",
-      down: "arrowdown",
-      shoot: "enter"
-    });
+    // Alimentar
+    feedBtn.addEventListener("click", feed);
 
-    const sword = {
-      x: 10,
-      y: 10,
-      size: 20,
-      taken: false
-    };
-
-    const gameOverScreen = document.getElementById("gameOverScreen");
-
-    function showGameOver(winner) {
-      gameOverScreen.innerText = `${winner.toUpperCase()} VENCEU!`;
-      gameOverScreen.style.display = "flex";
-    }
-
-    function drawSword() {
-      if (!sword.taken) {
-        ctx.fillStyle = "silver";
-        ctx.fillRect(sword.x, sword.y, sword.size, sword.size);
-        ctx.strokeStyle = "black";
-        ctx.strokeRect(sword.x, sword.y, sword.size, sword.size);
+    // Fome crescente com o tempo
+    setInterval(() => {
+      if (!dead) {
+        hunger = Math.min(MAX_HUNGER, hunger + 5);
+        updateHungerUI();
       }
-    }
+    }, HUNGER_INTERVAL);
 
-    function drawGround() {
-      ctx.fillStyle = "#ccc";
-      ctx.fillRect(0, canvas.height - 20, canvas.width, 20);
-    }
-
-    function gameLoop() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      drawGround();
-      drawSword();
-
-      if (player1.life <= 0) return showGameOver("vermelho");
-      if (player2.life <= 0) return showGameOver("azul");
-
-      player1.move();
-      player2.move();
-
-      if (keys[player1.controls.shoot]) player1.shoot();
-      if (keys[player2.controls.shoot]) player2.shoot();
-
-      if (player1.cooldown > 0) player1.cooldown--;
-      if (player2.cooldown > 0) player2.cooldown--;
-
-      player1.updateProjectiles();
-      player2.updateProjectiles();
-
-      player1.checkHitBy(player2.projectiles);
-      player2.checkHitBy(player1.projectiles);
-
-      player1.checkSwordPickup(sword);
-      player2.checkSwordPickup(sword);
-
-      player1.draw();
-      player2.draw();
-
-      requestAnimationFrame(gameLoop);
-    }
-
-    gameLoop();
+    // Salvar ao sair
+    window.addEventListener("beforeunload", saveExitTime);
   </script>
 </body>
 </html>
