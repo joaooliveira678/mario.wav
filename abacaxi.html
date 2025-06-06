@@ -2,113 +2,125 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Mini Mario na Floresta</title>
+  <title>Mario no Mundo Bizarro</title>
   <style>
     body {
       margin: 0;
       overflow: hidden;
     }
-
     canvas {
       display: block;
-      background: url('https://images.unsplash.com/photo-1563298723-dcfebaa392e3') no-repeat center center;
       background-size: cover;
+      background-position: center;
+    }
+    #creature {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      z-index: 10;
     }
   </style>
 </head>
 <body>
-<canvas id="game" width="800" height="400"></canvas>
+  <img id="creature" src="https://i.imgur.com/CxAGnBp.png" alt="Bizarro">
+  <canvas id="game" width="800" height="400"></canvas>
 
-<script>
-  const canvas = document.getElementById('game');
-  const ctx = canvas.getContext('2d');
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
 
-  const mario = {
-    x: 50,
-    y: 300,
-    width: 40,
-    height: 50,
-    color: 'red',
-    dy: 0,
-    jumpForce: -12,
-    grounded: false
-  };
+    // Fundo aleatório
+    const backgrounds = [
+      'https://images.unsplash.com/photo-1568605114967-8130f3a36994', // floresta
+      'https://images.unsplash.com/photo-1501785888041-af3ef285b470', // montanhas
+      'https://images.unsplash.com/photo-1549887534-4a23b4f4f2b2',     // deserto
+      'https://images.unsplash.com/photo-1507525428034-b723cf961d3e'  // mar
+    ];
+    const randomBg = backgrounds[Math.floor(Math.random() * backgrounds.length)];
+    canvas.style.backgroundImage = `url(${randomBg})`;
 
-  const gravity = 0.6;
-  const keys = {
-    right: false,
-    left: false,
-    up: false
-  };
+    const marioImg = new Image();
+    marioImg.src = 'https://i.imgur.com/JYUB0m3.png'; // Sprite básico do Mario
 
-  const ground = {
-    x: 0,
-    y: 350,
-    width: 800,
-    height: 50,
-    color: '#654321'
-  };
+    const mario = {
+      x: 50,
+      y: 300,
+      width: 40,
+      height: 50,
+      dy: 0,
+      jumpForce: -12,
+      grounded: false
+    };
 
-  const obstacle = {
-    x: 400,
-    y: 310,
-    width: 40,
-    height: 40,
-    color: 'brown'
-  };
+    const gravity = 0.6;
+    const keys = {
+      right: false,
+      left: false,
+      up: false
+    };
 
-  function drawRect(obj) {
-    ctx.fillStyle = obj.color;
-    ctx.fillRect(obj.x, obj.y, obj.width, obj.height);
-  }
+    const ground = {
+      x: 0,
+      y: 350,
+      width: 800,
+      height: 50,
+      color: '#654321'
+    };
 
-  function update() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    function update() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Movimento horizontal
-    if (keys.right) mario.x += 4;
-    if (keys.left) mario.x -= 4;
+      // Movimento horizontal
+      if (keys.right) mario.x += 4;
+      if (keys.left) mario.x -= 4;
 
-    // Gravidade
-    mario.dy += gravity;
-    mario.y += mario.dy;
+      // Gravidade
+      mario.dy += gravity;
+      mario.y += mario.dy;
 
-    // Chão
-    if (mario.y + mario.height >= ground.y) {
-      mario.y = ground.y - mario.height;
-      mario.dy = 0;
-      mario.grounded = true;
-    } else {
-      mario.grounded = false;
+      // Chão
+      if (mario.y + mario.height >= ground.y) {
+        mario.y = ground.y - mario.height;
+        mario.dy = 0;
+        mario.grounded = true;
+      } else {
+        mario.grounded = false;
+      }
+
+      // Pulo
+      if (keys.up && mario.grounded) {
+        mario.dy = mario.jumpForce;
+        mario.grounded = false;
+      }
+
+      // Desenhar chão
+      ctx.fillStyle = ground.color;
+      ctx.fillRect(ground.x, ground.y, ground.width, ground.height);
+
+      // Desenhar Mario
+      ctx.drawImage(marioImg, mario.x, mario.y, mario.width, mario.height);
+
+      requestAnimationFrame(update);
     }
 
-    // Pulo
-    if (keys.up && mario.grounded) {
-      mario.dy = mario.jumpForce;
-      mario.grounded = false;
-    }
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'ArrowRight') keys.right = true;
+      if (e.code === 'ArrowLeft') keys.left = true;
+      if (e.code === 'Space' || e.code === 'ArrowUp') keys.up = true;
+    });
 
-    // Desenhar elementos
-    drawRect(ground);
-    drawRect(obstacle);
-    drawRect(mario);
+    document.addEventListener('keyup', (e) => {
+      if (e.code === 'ArrowRight') keys.right = false;
+      if (e.code === 'ArrowLeft') keys.left = false;
+      if (e.code === 'Space' || e.code === 'ArrowUp') keys.up = false;
+    });
 
-    requestAnimationFrame(update);
-  }
-
-  document.addEventListener('keydown', (e) => {
-    if (e.code === 'ArrowRight') keys.right = true;
-    if (e.code === 'ArrowLeft') keys.left = true;
-    if (e.code === 'Space' || e.code === 'ArrowUp') keys.up = true;
-  });
-
-  document.addEventListener('keyup', (e) => {
-    if (e.code === 'ArrowRight') keys.right = false;
-    if (e.code === 'ArrowLeft') keys.left = false;
-    if (e.code === 'Space' || e.code === 'ArrowUp') keys.up = false;
-  });
-
-  update();
-</script>
+    marioImg.onload = () => {
+      update();
+    };
+  </script>
 </body>
 </html>
