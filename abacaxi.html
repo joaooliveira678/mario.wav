@@ -9,18 +9,52 @@
       overflow: hidden;
       background-color: #eee;
     }
+
     canvas {
       display: block;
       background: #c4f0c5;
     }
+
+    #gameOver {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      font-family: monospace;
+      font-size: 36px;
+      z-index: 10;
+      display: none;
+    }
+
+    #gameOver img {
+      width: 100px;
+      height: 100px;
+      image-rendering: pixelated;
+      margin-bottom: 20px;
+    }
   </style>
 </head>
 <body>
+
 <canvas id="game" width="900" height="400"></canvas>
+
+<div id="gameOver">
+  <img src="https://i.imgur.com/Z2XfN5x.png" alt="Caveira Pixelada">
+  <div id="winnerText">Fim de Jogo!</div>
+</div>
 
 <script>
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
+  const gameOverDiv = document.getElementById('gameOver');
+  const winnerText = document.getElementById('winnerText');
 
   const groundY = 350;
   const gravity = 0.6;
@@ -154,15 +188,14 @@
 
   const player1 = new Player(100, 'red', keys1);
   const player2 = new Player(700, 'blue', keys2);
-
   const waterGun = new WaterGun();
   const projectiles = [];
 
-  function drawHealthBars() {
-    ctx.fillStyle = 'red';
-    ctx.fillRect(20, 20, player1.health * 2, 10);
-    ctx.fillStyle = 'blue';
-    ctx.fillRect(660, 20, player2.health * 2, 10);
+  function drawHealthBar(player, x, y) {
+    ctx.strokeStyle = 'black';
+    ctx.strokeRect(x, y, 200, 15);
+    ctx.fillStyle = 'green';
+    ctx.fillRect(x, y, Math.max(0, player.health * 2), 15);
   }
 
   function gameLoop() {
@@ -173,7 +206,8 @@
 
     player1.draw();
     player2.draw();
-    drawHealthBars();
+    drawHealthBar(player1, 20, 20);
+    drawHealthBar(player2, 680, 20);
 
     waterGun.draw();
     waterGun.checkPickup(player1);
@@ -198,10 +232,9 @@
 
     // Verifica fim do jogo
     if (player1.health <= 0 || player2.health <= 0) {
-      ctx.fillStyle = 'black';
-      ctx.font = '40px Arial';
       const winner = player1.health <= 0 ? 'Jogador Azul venceu!' : 'Jogador Vermelho venceu!';
-      ctx.fillText(winner, 250, 200);
+      winnerText.textContent = winner;
+      gameOverDiv.style.display = 'flex';
       return;
     }
 
@@ -238,5 +271,6 @@
 
   gameLoop();
 </script>
+
 </body>
 </html>
