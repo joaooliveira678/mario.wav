@@ -2,77 +2,72 @@
 <html lang="pt-br">
 <head>
   <meta charset="UTF-8">
-  <title>Duelo dos Quadrados</title>
+  <title>Jogo dos Quadrados com Espada</title>
   <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      background: white;
-      overflow: hidden;
-    }
-    canvas {
-      display: block;
-      background: white;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: white; overflow: hidden; }
+    canvas { display: block; margin: auto; background: white; }
     #gameOverScreen {
       position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
       background: rgba(0, 0, 0, 0.8);
       color: white;
-      display: none;
-      justify-content: center;
-      align-items: center;
       font-size: 3em;
-      font-family: Arial, sans-serif;
-      z-index: 10;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1;
     }
   </style>
 </head>
 <body>
-  <canvas id="gameCanvas"></canvas>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
   <div id="gameOverScreen"></div>
 
   <script>
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
-    canvas.width = 800;
-    canvas.height = 600;
 
     const keys = {};
-    document.addEventListener("keydown", e => keys[e.key] = true);
-    document.addEventListener("keyup", e => keys[e.key] = false);
+    document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+    document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
     class Player {
       constructor(x, color, controls) {
         this.x = x;
-        this.y = canvas.height - 60; // No chão
+        this.y = canvas.height - 60;
         this.width = 40;
         this.height = 40;
         this.color = color;
         this.controls = controls;
         this.projectiles = [];
-        this.life = 3;
         this.cooldown = 0;
+        this.life = 3;
+        this.hasSword = false;
       }
 
       move() {
         if (keys[this.controls.left]) this.x -= 4;
         if (keys[this.controls.right]) this.x += 4;
+        if (keys[this.controls.up]) this.y -= 4;
+        if (keys[this.controls.down]) this.y += 4;
+
+        // Limites da tela
         this.x = Math.max(0, Math.min(canvas.width - this.width, this.x));
+        this.y = Math.max(0, Math.min(canvas.height - this.height - 20, this.y));
       }
 
       shoot() {
         if (this.cooldown <= 0) {
-          const direction = this.color === "blue" ? 6 : -6;
           this.projectiles.push({
             x: this.x + this.width / 2,
             y: this.y + this.height / 2,
-            dx: direction
+            dx: this.color === "blue" ? 6 : -6,
+            size: this.hasSword ? 12 : 6,
+            damage: this.hasSword ? 2 : 1
           });
-          this.cooldown = 20;
+          this.cooldown = this.hasSword ? 10 : 20;
         }
       }
 
@@ -82,41 +77,50 @@
       }
 
       draw() {
-        // Corpo
         ctx.fillStyle = this.color;
         ctx.fillRect(this.x, this.y, this.width, this.height);
 
-        // Arma (em cima)
+        // Arma vermelha
         ctx.fillStyle = "red";
         ctx.fillRect(this.x + this.width / 2 - 5, this.y - 10, 10, 10);
 
-        // Projetéis
+        // Tiros
         ctx.fillStyle = "green";
         this.projectiles.forEach(p => {
-          ctx.fillRect(p.x, p.y, 6, 6);
+          ctx.fillRect(p.x, p.y, p.size, p.size);
         });
 
         // Vida
         ctx.fillStyle = this.color;
-        const label = `Vida: ${this.life}`;
         ctx.font = "16px Arial";
-        const offset = this.color === "blue" ? 20 : canvas.width - 100;
-        ctx.fillText(label, offset, 20);
+        const posX = this.color === "blue" ? 20 : canvas.width - 100;
+        ctx.fillText("Vida: " + this.life, posX, 20);
       }
 
-      checkHitBy(projectiles) {
-        for (let i = 0; i < projectiles.length; i++) {
-          const p = projectiles[i];
+      checkHitBy(enemyProjectiles) {
+        for (let i = 0; i < enemyProjectiles.length; i++) {
+          const p = enemyProjectiles[i];
           if (
             p.x < this.x + this.width &&
-            p.x + 6 > this.x &&
-            this.y < canvas.height &&
-            this.y + this.height > canvas.height - 60
+            p.x + p.size > this.x &&
+            p.y < this.y + this.height &&
+            p.y + p.size > this.y
           ) {
-            this.life--;
-            projectiles.splice(i, 1);
+            this.life -= p.damage;
+            enemyProjectiles.splice(i, 1);
             break;
           }
+        }
+      }
+
+      checkSwordPickup(sword) {
+        if (!sword.taken &&
+            this.x < sword.x + sword.size &&
+            this.x + this.width > sword.x &&
+            this.y < sword.y + sword.size &&
+            this.y + this.height > sword.y) {
+          sword.taken = true;
+          this.hasSword = true;
         }
       }
     }
@@ -124,29 +128,55 @@
     const player1 = new Player(100, "blue", {
       left: "a",
       right: "d",
+      up: "w",
+      down: "s",
       shoot: " "
     });
 
     const player2 = new Player(660, "red", {
-      left: "ArrowLeft",
-      right: "ArrowRight",
-      shoot: "Enter"
+      left: "arrowleft",
+      right: "arrowright",
+      up: "arrowup",
+      down: "arrowdown",
+      shoot: "enter"
     });
+
+    const sword = {
+      x: 10,
+      y: 10,
+      size: 20,
+      taken: false
+    };
 
     const gameOverScreen = document.getElementById("gameOverScreen");
 
     function showGameOver(winner) {
-      gameOverScreen.innerText = `${winner} venceu!`;
+      gameOverScreen.innerText = `${winner.toUpperCase()} VENCEU!`;
       gameOverScreen.style.display = "flex";
+    }
+
+    function drawSword() {
+      if (!sword.taken) {
+        ctx.fillStyle = "silver";
+        ctx.fillRect(sword.x, sword.y, sword.size, sword.size);
+        ctx.strokeStyle = "black";
+        ctx.strokeRect(sword.x, sword.y, sword.size, sword.size);
+      }
+    }
+
+    function drawGround() {
+      ctx.fillStyle = "#ccc";
+      ctx.fillRect(0, canvas.height - 20, canvas.width, 20);
     }
 
     function gameLoop() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawGround();
+      drawSword();
 
-      if (player1.life <= 0) return showGameOver("Vermelho");
-      if (player2.life <= 0) return showGameOver("Azul");
+      if (player1.life <= 0) return showGameOver("vermelho");
+      if (player2.life <= 0) return showGameOver("azul");
 
-      // Atualiza lógica
       player1.move();
       player2.move();
 
@@ -159,17 +189,14 @@
       player1.updateProjectiles();
       player2.updateProjectiles();
 
-      // Colisões
       player1.checkHitBy(player2.projectiles);
       player2.checkHitBy(player1.projectiles);
 
-      // Desenhar
+      player1.checkSwordPickup(sword);
+      player2.checkSwordPickup(sword);
+
       player1.draw();
       player2.draw();
-
-      // Chão
-      ctx.fillStyle = "#ccc";
-      ctx.fillRect(0, canvas.height - 20, canvas.width, 20);
 
       requestAnimationFrame(gameLoop);
     }
