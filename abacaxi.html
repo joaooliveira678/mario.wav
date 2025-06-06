@@ -1,276 +1,162 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-br">
 <head>
   <meta charset="UTF-8">
-  <title>Luta de Quadrados</title>
+  <title>Jogo dos Quadrados</title>
   <style>
     body {
       margin: 0;
       overflow: hidden;
-      background-color: #eee;
+      background-image: url('https://i.imgur.com/XWwR6bZ.jpg'); /* Fundo com cavalos */
+      background-size: cover;
     }
-
     canvas {
       display: block;
-      background: #c4f0c5;
-    }
-
-    #gameOver {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.8);
-      color: white;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      font-family: monospace;
-      font-size: 36px;
-      z-index: 10;
-      display: none;
-    }
-
-    #gameOver img {
-      width: 100px;
-      height: 100px;
-      image-rendering: pixelated;
-      margin-bottom: 20px;
     }
   </style>
 </head>
 <body>
-
-<canvas id="game" width="900" height="400"></canvas>
-
-<div id="gameOver">
-  <img src="https://i.imgur.com/Z2XfN5x.png" alt="Caveira Pixelada">
-  <div id="winnerText">Fim de Jogo!</div>
-</div>
+<canvas id="gameCanvas"></canvas>
 
 <script>
-  const canvas = document.getElementById('game');
-  const ctx = canvas.getContext('2d');
-  const gameOverDiv = document.getElementById('gameOver');
-  const winnerText = document.getElementById('winnerText');
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+canvas.width = 800;
+canvas.height = 600;
 
-  const groundY = 350;
-  const gravity = 0.6;
+const keys = {};
+document.addEventListener('keydown', e => keys[e.key] = true);
+document.addEventListener('keyup', e => keys[e.key] = false);
 
-  class Player {
-    constructor(x, color, keys) {
-      this.x = x;
-      this.y = groundY - 50;
-      this.width = 40;
-      this.height = 50;
-      this.color = color;
-      this.dy = 0;
-      this.grounded = false;
-      this.health = 100;
-      this.keys = keys;
-      this.direction = 1;
-      this.hasWaterGun = false;
-    }
-
-    move() {
-      if (this.keys.left.pressed) this.x -= 4;
-      if (this.keys.right.pressed) this.x += 4;
-
-      // Gravidade
-      this.dy += gravity;
-      this.y += this.dy;
-
-      // Chão
-      if (this.y + this.height >= groundY) {
-        this.y = groundY - this.height;
-        this.dy = 0;
-        this.grounded = true;
-      } else {
-        this.grounded = false;
-      }
-
-      // Pulo
-      if (this.keys.up.pressed && this.grounded) {
-        this.dy = -12;
-      }
-
-      // Limites da tela
-      this.x = Math.max(0, Math.min(this.x, canvas.width - this.width));
-    }
-
-    draw() {
-      ctx.fillStyle = this.color;
-      ctx.fillRect(this.x, this.y, this.width, this.height);
-    }
-
-    attack(target) {
-      const reach = 20;
-      if (Math.abs(this.x - target.x) <= this.width + reach &&
-          Math.abs(this.y - target.y) <= this.height) {
-        target.health -= 10;
-      }
-    }
+class Player {
+  constructor(x, y, color, controls) {
+    this.x = x;
+    this.y = y;
+    this.color = color;
+    this.controls = controls;
+    this.width = 40;
+    this.height = 40;
+    this.projectiles = [];
+    this.hasSword = false;
   }
 
-  class WaterGun {
-    constructor() {
-      this.x = 30;
-      this.y = groundY - 30;
-      this.width = 20;
-      this.height = 20;
-      this.collected = false;
-    }
+  move() {
+    if (keys[this.controls.left]) this.x -= 3;
+    if (keys[this.controls.right]) this.x += 3;
+    if (keys[this.controls.up]) this.y -= 3;
+    if (keys[this.controls.down]) this.y += 3;
 
-    draw() {
-      if (!this.collected) {
-        ctx.fillStyle = 'lightblue';
-        ctx.fillRect(this.x, this.y, this.width, this.height);
-      }
-    }
-
-    checkPickup(player) {
-      if (!this.collected &&
-          player.x < this.x + this.width &&
-          player.x + player.width > this.x &&
-          player.y < this.y + this.height &&
-          player.y + player.height > this.y) {
-        this.collected = true;
-        player.hasWaterGun = true;
-      }
-    }
+    // Limites da arena
+    this.x = Math.max(0, Math.min(canvas.width - this.width, this.x));
+    this.y = Math.max(0, Math.min(canvas.height - this.height, this.y));
   }
 
-  class Projectile {
-    constructor(x, y, direction, color) {
-      this.x = x;
-      this.y = y;
-      this.width = 10;
-      this.height = 5;
-      this.direction = direction;
-      this.color = color;
-      this.speed = 6;
-    }
-
-    move() {
-      this.x += this.direction * this.speed;
-    }
-
-    draw() {
-      ctx.fillStyle = this.color;
-      ctx.fillRect(this.x, this.y, this.width, this.height);
-    }
-
-    hit(target) {
-      return (
-        this.x < target.x + target.width &&
-        this.x + this.width > target.x &&
-        this.y < target.y + target.height &&
-        this.y + this.height > target.y
-      );
-    }
+  shoot() {
+    this.projectiles.push({
+      x: this.x + this.width / 2,
+      y: this.y + this.height / 2,
+      dx: this.color === 'blue' ? 5 : -5
+    });
   }
 
-  const keys1 = {
-    left: { code: 'KeyA', pressed: false },
-    right: { code: 'KeyD', pressed: false },
-    up: { code: 'KeyW', pressed: false },
-    attack: { code: 'KeyF' }
-  };
+  updateProjectiles() {
+    this.projectiles.forEach(p => p.x += p.dx);
+    this.projectiles = this.projectiles.filter(p => p.x >= 0 && p.x <= canvas.width);
+  }
 
-  const keys2 = {
-    left: { code: 'ArrowLeft', pressed: false },
-    right: { code: 'ArrowRight', pressed: false },
-    up: { code: 'ArrowUp', pressed: false },
-    attack: { code: 'KeyL' }
-  };
+  draw() {
+    // Corpo
+    ctx.fillStyle = this.color;
+    ctx.fillRect(this.x, this.y, this.width, this.height);
 
-  const player1 = new Player(100, 'red', keys1);
-  const player2 = new Player(700, 'blue', keys2);
-  const waterGun = new WaterGun();
-  const projectiles = [];
+    // Arma (acima do jogador)
+    ctx.fillStyle = 'red';
+    ctx.fillRect(this.x + this.width/2 - 5, this.y - 10, 10, 10);
 
-  function drawHealthBar(player, x, y) {
-    ctx.strokeStyle = 'black';
-    ctx.strokeRect(x, y, 200, 15);
+    // Projetéis
     ctx.fillStyle = 'green';
-    ctx.fillRect(x, y, Math.max(0, player.health * 2), 15);
+    this.projectiles.forEach(p => {
+      ctx.fillRect(p.x, p.y, 5, 5);
+    });
+
+    // Espada na mão se coletada
+    if (this.hasSword) {
+      ctx.fillStyle = 'silver';
+      ctx.fillRect(this.x + this.width, this.y + 10, 10, 5);
+    }
   }
 
-  function gameLoop() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    player1.move();
-    player2.move();
-
-    player1.draw();
-    player2.draw();
-    drawHealthBar(player1, 20, 20);
-    drawHealthBar(player2, 680, 20);
-
-    waterGun.draw();
-    waterGun.checkPickup(player1);
-    waterGun.checkPickup(player2);
-
-    // Projetos
-    for (let i = projectiles.length - 1; i >= 0; i--) {
-      const p = projectiles[i];
-      p.move();
-      p.draw();
-
-      if (p.hit(player1) && p.color !== 'red') {
-        player1.health -= 5;
-        projectiles.splice(i, 1);
-      } else if (p.hit(player2) && p.color !== 'blue') {
-        player2.health -= 5;
-        projectiles.splice(i, 1);
-      } else if (p.x < 0 || p.x > canvas.width) {
-        projectiles.splice(i, 1);
-      }
+  checkSwordPickup(sword) {
+    if (!sword.collected &&
+        this.x < sword.x + sword.size &&
+        this.x + this.width > sword.x &&
+        this.y < sword.y + sword.size &&
+        this.y + this.height > sword.y) {
+      this.hasSword = true;
+      sword.collected = true;
     }
+  }
+}
 
-    // Verifica fim do jogo
-    if (player1.health <= 0 || player2.health <= 0) {
-      const winner = player1.health <= 0 ? 'Jogador Azul venceu!' : 'Jogador Vermelho venceu!';
-      winnerText.textContent = winner;
-      gameOverDiv.style.display = 'flex';
-      return;
+const sword = {
+  x: canvas.width - 50,
+  y: canvas.height - 50,
+  size: 20,
+  collected: false,
+  draw() {
+    if (!this.collected) {
+      ctx.fillStyle = 'silver';
+      ctx.fillRect(this.x, this.y, this.size / 2, this.size);
     }
+  }
+};
 
-    requestAnimationFrame(gameLoop);
+const player1 = new Player(100, 300, 'blue', {
+  left: 'a', right: 'd', up: 'w', down: 's', shoot: ' '
+});
+const player2 = new Player(650, 300, 'red', {
+  left: 'ArrowLeft', right: 'ArrowRight', up: 'ArrowUp', down: 'ArrowDown', shoot: 'Enter'
+});
+
+function gameLoop() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Movimentação
+  player1.move();
+  player2.move();
+
+  // Tiro
+  if (keys[player1.controls.shoot]) {
+    if (!player1.shootCooldown) {
+      player1.shoot();
+      player1.shootCooldown = 20;
+    }
   }
 
-  // Input
-  document.addEventListener('keydown', (e) => {
-    for (let k in keys1) if (keys1[k].code === e.code) keys1[k].pressed = true;
-    for (let k in keys2) if (keys2[k].code === e.code) keys2[k].pressed = true;
-
-    // Ataques
-    if (e.code === keys1.attack.code) {
-      if (player1.hasWaterGun) {
-        projectiles.push(new Projectile(player1.x + 40, player1.y + 20, 1, 'red'));
-      } else {
-        player1.attack(player2);
-      }
+  if (keys[player2.controls.shoot]) {
+    if (!player2.shootCooldown) {
+      player2.shoot();
+      player2.shootCooldown = 20;
     }
+  }
 
-    if (e.code === keys2.attack.code) {
-      if (player2.hasWaterGun) {
-        projectiles.push(new Projectile(player2.x - 10, player2.y + 20, -1, 'blue'));
-      } else {
-        player2.attack(player1);
-      }
-    }
-  });
+  if (player1.shootCooldown) player1.shootCooldown--;
+  if (player2.shootCooldown) player2.shootCooldown--;
 
-  document.addEventListener('keyup', (e) => {
-    for (let k in keys1) if (keys1[k].code === e.code) keys1[k].pressed = false;
-    for (let k in keys2) if (keys2[k].code === e.code) keys2[k].pressed = false;
-  });
+  // Atualização e desenho
+  player1.updateProjectiles();
+  player2.updateProjectiles();
+  player1.checkSwordPickup(sword);
+  player2.checkSwordPickup(sword);
 
-  gameLoop();
+  player1.draw();
+  player2.draw();
+  sword.draw();
+
+  requestAnimationFrame(gameLoop);
+}
+
+gameLoop();
 </script>
-
 </body>
 </html>
